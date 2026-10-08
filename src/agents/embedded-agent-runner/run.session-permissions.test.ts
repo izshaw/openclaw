@@ -58,22 +58,15 @@ describe("embedded run session permissions", () => {
     await state?.cleanup();
   });
 
-  it("prepares the exec mode with plugin-owned permission facts", async () => {
+  it("preserves the host's requireWorkspaceOnly requirement at attempt dispatch", async () => {
     mockedRunEmbeddedAttempt.mockResolvedValueOnce(makeAttemptResult({ assistantTexts: ["OK"] }));
-
     await runEmbeddedAgent({
       ...createPluginHarnessRunParams(state),
-      permissionMode: "workspace",
-      runId: "run-plugin-session-permissions",
+      requireWorkspaceOnly: true,
+      runId: "run-workspace-requirement",
     });
-
     expect(mockedRunEmbeddedAttempt).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agentHarnessId: "codex",
-        execOverrides: expect.objectContaining({ mode: "auto" }),
-        permissionMode: "workspace",
-        sessionRoot: state.sessionsDir(),
-      }),
+      expect.objectContaining({ requireWorkspaceOnly: true }),
     );
   });
 
@@ -124,7 +117,7 @@ describe("embedded run session permissions", () => {
         expect(attempt.permissionMode).toBe(after ?? undefined);
         expect(attempt.execOverrides?.mode).toBe(execMode);
         expect(attempt.sessionId).toBe(pluginHarnessRunParams.sessionId);
-        expect(attempt.prompt).toContain("Continue from the current transcript");
+        expect(attempt.prompt).toContain("Continue the current task from the existing transcript");
         expect(attempt.prompt).not.toBe(pluginHarnessRunParams.prompt);
         expect(attempt.suppressNextUserMessagePersistence).toBe(true);
         expect(attempt.skipPreparedUserTurnMessage).toBe(true);
@@ -206,6 +199,8 @@ describe("embedded run session permissions", () => {
           return retained!.request("full");
         }),
       ).rejects.toThrow("not authorized");
+      expect(attempt.permissionMode).toBe("workspace");
+      expect(attempt.sessionRoot).toBe(state.sessionsDir());
       expect(attempt.execOverrides?.mode).toBe("auto");
       return makeAttemptResult({ assistantTexts: ["Still restricted"] });
     });
